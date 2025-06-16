@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from utils.pk_models import schnider_pk
+from dask import delayed, compute
 
 
 #simulating pharmacokinetics/pharmacodynamics while introducing Gaussian noise, returning matrices of concentrations and responses
@@ -37,6 +38,40 @@ def simulate_pk_pd(t, k_e=0.1, EC50=1.0, gamma=2.0, ke0=0.3):
     C_e = np.clip(C_e, 0, None)  # Clamp to [0, ∞)
 
     return C_p, R, C_e
+
+
+
+# More stream-lined addition -- simulating one patient efficiently with Dask
+@delayed
+def simulate_one_patient(t):
+    k_e = np.random.uniform(0.15, 0.25)
+    EC50 = np.random.uniform(0.8, 1.2)
+    gamma = np.random.uniform(2.5, 3.5)
+
+    C_p, R, C_e = simulate_pk_pd(t, k_e=k_e, EC50=EC50, gamma=gamma)
+    return R[0], R[:, None], C_e[:, None]  # y0, true_y, C_e
+
+# dask allows each individual patient to be done in parallel 
+def load_synthetic_data_dask(n_patients=32, n_timesteps=100, t_max=10.0):
+    t = np.linspace(0, t_max, n_timesteps)
+
+    results = [simulate_one_patient(t) for _ in range(n_patients)]
+    results = compute(*results)  # Triggers parallel execution
+
+    y0, true_y, C_all = zip(*results)
+    C_all_np = np.clip(np.array(C_all), 0, None)
+
+    C_mean, C_std = C_all_np.mean(), C_all_np.std()
+    C_all_np = (C_all_np - C_mean) / C_std
+
+    t_tensor = torch.tensor(t, dtype=torch.float32)
+    y0_tensor = torch.tensor(y0, dtype=torch.float32)
+    true_y_tensor = torch.tensor(np.array(true_y), dtype=torch.float32)
+    C_tensor = torch.tensor(C_all_np, dtype=torch.float32)
+
+    return t_tensor, y0_tensor, true_y_tensor, C_tensor
+
+
 
 
 # If we want to tailor towards propofol
@@ -92,6 +127,8 @@ def load_synthetic_data_propofol(n_patients=32, n_timesteps=100, t_max=10.0):
     C_tensor = torch.tensor(C_all_np, dtype=torch.float32)               # [B, T, 1]
 
     return t_tensor, y0_tensor, true_y_tensor, C_tensor
+
+
 
 
 

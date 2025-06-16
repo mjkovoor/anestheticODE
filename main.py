@@ -4,16 +4,22 @@ from torchdiffeq import odeint
 from models.ode_func import ODEFunc
 from models.ODE_wrapper import ODEWrapper
 from models.semiODE import SemiMechanisticODE
-from data.load_synthetic_data import load_synthetic_data, load_synthetic_data_propofol
+from data.load_synthetic_data import load_synthetic_data, load_synthetic_data_propofol, load_synthetic_data_dask
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score, mean_absolute_error
+# from dask.distributed import Client
+
+# if __name__ == "__main__":
+#     client = Client()  # Launches local dashboard at http://localhost:8787
+# # client = Client()  
 
 # Hyperparameters
 epochs = 100
 lr = 1e-3
 
+t, X, Y, C = load_synthetic_data_dask()
 # Load synthetic dataset with generic drug 
-t, X, Y, C = load_synthetic_data()
+# t, X, Y, C = load_synthetic_data()
 # Load synthetic dataset for specifically propool 
 # t, X, Y, C = load_synthetic_data_propofol(n_patients=32)
 
@@ -60,6 +66,10 @@ for epoch in range(epochs):
     C_train = C[:train_size].to(device) 
 
     wrapped_ode = ODEWrapper(ode_func, C_train, t_vector)
+
+    if train_X.ndim == 1:
+        train_X = train_X.unsqueeze(-1)
+
     pred_y = odeint(wrapped_ode, train_X, t)
     pred_y = pred_y.permute(1, 0, 2)  # reshape to [batch, T, dim]
 
@@ -78,6 +88,10 @@ with torch.no_grad():
     t_max = t_vector[-1].item()
 
     wrapped_ode_test = ODEWrapper(ode_func, C_test, t)
+
+    if test_X.ndim == 1:
+        test_X = test_X.unsqueeze(-1)    
+
     test_pred_y = odeint(wrapped_ode_test, test_X, t.to(device))
     test_pred_y = test_pred_y.permute(1, 0, 2)  # shape: [batch, T, dim]
 
