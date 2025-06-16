@@ -4,7 +4,7 @@ from torchdiffeq import odeint
 from models.ode_func import ODEFunc
 from models.ODE_wrapper import ODEWrapper
 from models.semiODE import SemiMechanisticODE
-from data.load_synthetic_data import load_synthetic_data
+from data.load_synthetic_data import load_synthetic_data, load_synthetic_data_propofol
 import matplotlib.pyplot as plt
 from sklearn.metrics import r2_score, mean_absolute_error
 
@@ -12,8 +12,10 @@ from sklearn.metrics import r2_score, mean_absolute_error
 epochs = 100
 lr = 1e-3
 
-# Load synthetic dataset (timeseries: [batch, time, features]) and concentration (for plotting)
+# Load synthetic dataset with generic drug 
 t, X, Y, C = load_synthetic_data()
+# Load synthetic dataset for specifically propool 
+# t, X, Y, C = load_synthetic_data_propofol(n_patients=32)
 
 # Initial state x0 shape [B, dim]
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
